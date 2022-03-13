@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: gowebtestacr.azurecr.io
+        username: ${{ secrets.acr_gowebtestacr_username }}
+        password: ${{ secrets.acr_gowebtestacr_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/cmd/all-in-one" -f  "cmd/all-in-one/Dockerfile" -t gowebtestacr.azurecr.io/gowebtest:${{ github.sha }} --label dockerfile-path=cmd/all-in-one/Dockerfile
+        docker push gowebtestacr.azurecr.io/gowebtest:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_gowebtest_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep go-web-testbce1 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace go-web-testbce1`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: go-web-testbce1
+        container-registry-url: gowebtestacr.azurecr.io
+        container-registry-username: ${{ secrets.acr_gowebtestacr_username }}
+        container-registry-password: ${{ secrets.acr_gowebtestacr_password }}
+        secret-name: gowebtestdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: go-web-testbce1
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          gowebtestacr.azurecr.io/gowebtest:${{ github.sha }}
+        imagepullsecrets: |
+          gowebtestdockerauth
