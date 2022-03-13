@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "gowebtest-7f85"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "gowebtest-7f85"
+  template:
+    metadata:
+      labels:
+        app: "gowebtest-7f85"
+    spec:
+      containers:
+        - name: "gowebtest-7f85"
+          image: "gowebtestacr.azurecr.io/gowebtest"
+          ports:
+          - containerPort: 5775
